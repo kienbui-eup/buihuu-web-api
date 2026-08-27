@@ -43,6 +43,7 @@ from gramps_webapi.api.search.indexer import SearchIndexer, SemanticSearchIndexe
 
 from ..auth import TaskTree, get_owner_emails
 from ..auth import user_db
+from ..branding import APP_NAME
 from ..undodb import migrate as migrate_undodb
 from .check import check_database
 from .emails import email_confirm_email, email_new_user, email_reset_pw
@@ -168,7 +169,7 @@ def send_email_reset_password(email: str, user_name: str, token: str):
     body, body_html = email_reset_pw(
         base_url=base_url, user_name=user_name, token=token
     )
-    subject = _("Reset your Gramps password")
+    subject = _("Reset your %s password") % APP_NAME
     send_email(subject=subject, body=body, to=[email], body_html=body_html)
 
 

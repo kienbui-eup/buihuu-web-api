@@ -21,6 +21,8 @@
 
 from gettext import gettext as _
 
+from ..branding import APP_NAME
+
 EMAIL_CSS_STYLES = """
 body {
     font-family: Arial, sans-serif;
@@ -185,7 +187,7 @@ def email_htmlbody_reset_pw(user_name: str, url: str) -> str:
 
 def email_body_confirm_email(user_name: str, url: str) -> str:
     header = _("Confirm your e-mail address")
-    welcome = _("Welcome to Gramps Web")
+    welcome = _("Welcome to %s") % APP_NAME
     greeting = _("Hi %s,") % user_name
     descLink = _(
         "Please click on the following link, or paste this into your browser "
@@ -210,7 +212,7 @@ def email_body_confirm_email(user_name: str, url: str) -> str:
 
 def email_htmlbody_confirm_email(user_name: str, url: str) -> str:
     header = _("Confirm your e-mail address")
-    welcome = _("Welcome to Gramps Web")
+    welcome = _("Welcome to %s") % APP_NAME
     greeting = _("Hi %s,") % user_name
     descAction = _(
         "Thank you for registering! Please confirm your email address by clicking the button below:"

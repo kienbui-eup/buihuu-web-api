@@ -88,6 +88,7 @@ from werkzeug.security import safe_join
 
 from ..auth import config_get, get_tree, get_tree_usage, set_tree_usage
 from ..auth.const import PERM_VIEW_PRIVATE
+from ..branding import DEFAULT_LANGUAGE
 from ..const import (
     DB_CONFIG_ALLOWED_KEYS,
     LOCALE_MAP,
@@ -527,21 +528,36 @@ def get_db_handle(readonly: bool = True) -> DbReadBase:
     return g.db
 
 
+def _build_locale(language: str) -> Optional[GrampsLocale]:
+    """Dựng GrampsLocale cho một mã ngôn ngữ, None nếu Gramps không có ngôn ngữ đó.
+
+    Cố tình không nhớ đệm: đối tượng trả về được gán vào `options.locale` của
+    report nên phải là instance riêng cho mỗi lời gọi, đúng như bản gốc.
+    """
+    catalog = GRAMPS_LOCALE.get_language_dict()
+    for entry in catalog:
+        if catalog[entry] == language:
+            # translate language code (e.g. "da") to locale code (e.g. "da_DK")
+            locale_code = LOCALE_MAP.get(language, language)
+            if "UTF" not in locale_code.upper():
+                locale_code = f"{locale_code}.UTF-8"
+            return GrampsLocale(lang=locale_code)
+    return None
+
+
 def get_locale_for_language(
     language: Optional[str], default: bool = False
 ) -> GrampsLocale:
     """Get GrampsLocale set to specified language."""
     if language is not None:
-        catalog = GRAMPS_LOCALE.get_language_dict()
-        for entry in catalog:
-            if catalog[entry] == language:
-                # translate language code (e.g. "da") to locale code (e.g. "da_DK")
-                locale_code = LOCALE_MAP.get(language, language)
-                if "UTF" not in locale_code.upper():
-                    locale_code = f"{locale_code}.UTF-8"
-                return GrampsLocale(lang=locale_code)
+        locale = _build_locale(language)
+        if locale is not None:
+            return locale
     if default:
-        return GRAMPS_LOCALE
+        # Lùi về ngôn ngữ mặc định của bản triển khai trước, chỉ khi Gramps
+        # không có ngôn ngữ đó mới dùng locale của tiến trình máy chủ.
+        locale = _build_locale(DEFAULT_LANGUAGE)
+        return locale if locale is not None else GRAMPS_LOCALE
     return None
 
 
