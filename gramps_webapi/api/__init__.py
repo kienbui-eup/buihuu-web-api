@@ -132,6 +132,7 @@ from .resources.timeline import (
 )
 from .resources.token import (
     TokenCreateOwnerResource,
+    TokenFamilyCodeResource,
     TokenRefreshResource,
     TokenResource,
 )
@@ -224,6 +225,12 @@ register_endpt(
 # Token
 register_endpt(TokenResource, "/token/", "token", tags=["Token"])
 register_endpt(TokenRefreshResource, "/token/refresh/", "token_refresh", tags=["Token"])
+register_endpt(
+    TokenFamilyCodeResource,
+    "/token/family-code/",
+    "token_family_code",
+    tags=["Token"],
+)
 register_endpt(
     TokenCreateOwnerResource,
     "/token/create_owner/",

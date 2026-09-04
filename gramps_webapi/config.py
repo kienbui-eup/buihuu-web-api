@@ -114,6 +114,9 @@ class DefaultConfig(object):
     PILLOW_MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
     MAX_THUMBNAIL_FILE_BYTES = 50 * 1024 * 1024  # 50 MB
     MAX_MEDIA_ARCHIVE_UPLOAD_BYTES = None
+    # Tài khoản khách chỉ xem nhận token khi gõ đúng mã dòng họ (họ tên một
+    # người trong cây, xem api/family_code.py). Để rỗng là tắt lối vào này.
+    FAMILY_CODE_USERNAME = "khach"
 
 
 class DefaultConfigJWT(object):

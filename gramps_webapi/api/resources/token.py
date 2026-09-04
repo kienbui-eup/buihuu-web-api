@@ -36,17 +36,20 @@ from ...auth import (
     get_guid,
     get_name,
     get_permissions,
+    get_user_details,
     is_tree_disabled,
 )
 from ...auth.oidc_helpers import is_oidc_enabled
 from ...auth.const import (
     CLAIM_LIMITED_SCOPE,
     PERM_VIEW_OTHER_TREE,
+    ROLE_MEMBER,
     SCOPE_CREATE_ADMIN,
     SCOPE_CREATE_OWNER,
 )
 from ...const import TREE_MULTI
 from ..blueprint import api_blueprint
+from ..family_code import family_code_matches
 from ..ratelimiter import limiter
 from ..util import abort_with_message, get_tree_id_or_none, tree_exists
 from . import RefreshProtectedResource, Resource
@@ -152,6 +155,61 @@ class TokenResource(Resource):
         tree_id, permissions = get_tree_id_and_permissions(
             user_id=user_id, username=args["username"]
         )
+        return get_tokens(
+            user_id=user_id,
+            permissions=permissions,
+            tree_id=tree_id,
+            include_refresh=True,
+            fresh=True,
+        )
+
+
+class TokenFamilyCodeSchema(Schema):
+    """Request body for POST /token/family-code/."""
+
+    code = fields.Str(
+        required=True,
+        validate=validate.Length(min=1, max=200),
+        load_only=True,
+        metadata={
+            "description": "Mã dòng họ: họ tên đầy đủ của một người trong cây, "
+            "viết liền, không phân biệt hoa thường."
+        },
+    )
+
+
+class TokenFamilyCodeResource(Resource):
+    """Cấp token xem cho người gõ đúng mã dòng họ.
+
+    Mã là họ tên của một người trong cây (xem family_code.py). Token cấp cho
+    tài khoản khách đặt trong FAMILY_CODE_USERNAME; tài khoản đó phải là khách
+    hoặc thành viên, để lỡ cấu hình nhầm sang tài khoản biên soạn thì mã họ tên
+    không mở được quyền sửa. Giới hạn tần suất chặt hơn /token/ vì tên người dễ
+    đoán hơn mật khẩu.
+    """
+
+    @limiter.limit("1/second;20/minute")
+    @api_blueprint.response(200, TokenPairSchema)
+    @api_blueprint.arguments(TokenFamilyCodeSchema, location="json")
+    def post(self, args):
+        """Post the family code to fetch a token for the shared guest account."""
+        username = current_app.config.get("FAMILY_CODE_USERNAME") or ""
+        if not username:
+            abort_with_message(404, "Family code login is not enabled")
+        try:
+            user_id = get_guid(username)
+        except ValueError:
+            abort_with_message(503, "Family code account does not exist")
+        details = get_user_details(username) or {}
+        if details.get("role", ROLE_MEMBER + 1) > ROLE_MEMBER:
+            abort_with_message(503, "Family code account must be a guest or member")
+        tree_id, permissions = get_tree_id_and_permissions(
+            user_id=user_id, username=username
+        )
+        if tree_id is None or not family_code_matches(
+            tree=tree_id, user_id=user_id, code=args["code"]
+        ):
+            abort_with_message(403, "Invalid family code")
         return get_tokens(
             user_id=user_id,
             permissions=permissions,
