@@ -117,6 +117,10 @@ class DefaultConfig(object):
     # Tài khoản khách chỉ xem nhận token khi gõ đúng mã dòng họ (họ tên một
     # người trong cây, xem api/family_code.py). Để rỗng là tắt lối vào này.
     FAMILY_CODE_USERNAME = "khach"
+    # Mã chung cả họ, nhận thêm bên cạnh họ tên người trong cây. So sau khi
+    # chuẩn hóa như tên: "buihuu", "BUIHUU" hay "Bùi Hữu" đều mở được. Để
+    # rỗng là chỉ nhận họ tên.
+    FAMILY_CODE_DEFAULT = "buihuu"
 
 
 class DefaultConfigJWT(object):

@@ -1,11 +1,13 @@
-"""Mã dòng họ: mở cây gia phả bằng họ tên của một người trong cây.
+"""Mã dòng họ: mở cây gia phả bằng mã chung của họ hoặc họ tên một người trong cây.
 
 Mã là họ tên đầy đủ của bất kỳ người nào có trong cây, viết liền, không phân
 biệt hoa thường. Máy chủ chuẩn hóa cả mã gõ vào lẫn tên trong cây theo cùng
 một cách (bỏ dấu, bỏ khoảng trắng và dấu câu, chữ thường), nên "Bui Van A",
-"bùivăna" hay "BÙI VĂN A" đều là một mã. Khớp thì cấp token cho tài khoản khách
-chỉ xem đặt trong cấu hình FAMILY_CODE_USERNAME; người xem không cần biết mật
-khẩu của tài khoản đó.
+"bùivăna" hay "BÙI VĂN A" đều là một mã. Ngoài họ tên, mã chung đặt trong cấu
+hình FAMILY_CODE_DEFAULT (mặc định "buihuu") cũng mở được, so theo cùng cách
+chuẩn hóa nên viết hoa thường thế nào cũng nhận. Khớp thì cấp token cho tài
+khoản khách chỉ xem đặt trong cấu hình FAMILY_CODE_USERNAME; người xem không
+cần biết mật khẩu của tài khoản đó.
 
 Tập mã của một cây tính từ mọi tên (tên chính và tên khác) của mọi người, kể
 cả người được đánh dấu riêng tư, vì việc so khớp diễn ra ở máy chủ và không
@@ -110,9 +112,20 @@ def clear_cache() -> None:
         _cache.clear()
 
 
-def family_code_matches(tree: str, user_id: str, code: str) -> bool:
-    """Mã gõ vào có là họ tên của một người trong cây không."""
+def family_code_matches(
+    tree: str, user_id: str, code: str, default_code: str | None = None
+) -> bool:
+    """Mã gõ vào có là mã chung của họ hoặc họ tên của một người trong cây không.
+
+    Mã chung so trước và không chịu ngưỡng độ dài, vì người quản trị đã tự
+    chọn nó; họ tên trong cây vẫn phải đủ dài để không nhận tên một chữ.
+    """
     normalized = normalize_code(code)
+    if not normalized:
+        return False
+    shared = normalize_code(default_code)
+    if shared and normalized == shared:
+        return True
     if len(normalized) < MIN_CODE_LENGTH:
         return False
     return normalized in tree_codes(tree, user_id)

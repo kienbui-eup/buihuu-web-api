@@ -96,6 +96,36 @@ class TestTokenFamilyCode(unittest.TestCase):
         rv = self.client.post(URL, json={"code": given_first})
         self.assertEqual(rv.status_code, 200)
 
+    def test_default_code_any_case(self):
+        with patch.dict(self.app.config, {"FAMILY_CODE_DEFAULT": "buihuu"}):
+            for code in ("buihuu", "BUIHUU", "BuiHuu", " bui huu ", "Bùi Hữu"):
+                rv = self.client.post(URL, json={"code": code})
+                self.assertEqual(rv.status_code, 200, code)
+                self.assertIn("access_token", rv.json)
+                with self.app.app_context():
+                    claims = decode_token(rv.json["access_token"])
+                self.assertNotIn("EditObject", claims["permissions"])
+
+    def test_default_code_is_buihuu_out_of_the_box(self):
+        self.assertEqual(self.app.config.get("FAMILY_CODE_DEFAULT"), "buihuu")
+        rv = self.client.post(URL, json={"code": "BuiHuu"})
+        self.assertEqual(rv.status_code, 200)
+
+    def test_default_code_shorter_than_names_still_works(self):
+        with patch.dict(self.app.config, {"FAMILY_CODE_DEFAULT": "bh"}):
+            rv = self.client.post(URL, json={"code": "BH"})
+            self.assertEqual(rv.status_code, 200)
+            rv = self.client.post(URL, json={"code": "buihuu"})
+            self.assertEqual(rv.status_code, 403)
+
+    def test_default_code_disabled_when_empty(self):
+        with patch.dict(self.app.config, {"FAMILY_CODE_DEFAULT": ""}):
+            rv = self.client.post(URL, json={"code": "buihuu"})
+            self.assertEqual(rv.status_code, 403)
+            # Họ tên trong cây vẫn mở được như trước.
+            rv = self.client.post(URL, json={"code": self.full_name})
+            self.assertEqual(rv.status_code, 200)
+
     def test_disabled_when_no_username(self):
         with patch.dict(self.app.config, {"FAMILY_CODE_USERNAME": ""}):
             rv = self.client.post(URL, json={"code": self.full_name})

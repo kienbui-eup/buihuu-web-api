@@ -172,8 +172,8 @@ class TokenFamilyCodeSchema(Schema):
         validate=validate.Length(min=1, max=200),
         load_only=True,
         metadata={
-            "description": "Mã dòng họ: họ tên đầy đủ của một người trong cây, "
-            "viết liền, không phân biệt hoa thường."
+            "description": "Mã dòng họ: mã chung của họ hoặc họ tên đầy đủ của "
+            "một người trong cây, viết liền, không phân biệt hoa thường."
         },
     )
 
@@ -181,11 +181,11 @@ class TokenFamilyCodeSchema(Schema):
 class TokenFamilyCodeResource(Resource):
     """Cấp token xem cho người gõ đúng mã dòng họ.
 
-    Mã là họ tên của một người trong cây (xem family_code.py). Token cấp cho
-    tài khoản khách đặt trong FAMILY_CODE_USERNAME; tài khoản đó phải là khách
-    hoặc thành viên, để lỡ cấu hình nhầm sang tài khoản biên soạn thì mã họ tên
-    không mở được quyền sửa. Giới hạn tần suất chặt hơn /token/ vì tên người dễ
-    đoán hơn mật khẩu.
+    Mã là mã chung đặt trong FAMILY_CODE_DEFAULT hoặc họ tên của một người
+    trong cây (xem family_code.py). Token cấp cho tài khoản khách đặt trong
+    FAMILY_CODE_USERNAME; tài khoản đó phải là khách hoặc thành viên, để lỡ cấu
+    hình nhầm sang tài khoản biên soạn thì mã này không mở được quyền sửa. Giới
+    hạn tần suất chặt hơn /token/ vì mã dễ đoán hơn mật khẩu.
     """
 
     @limiter.limit("1/second;20/minute")
@@ -207,7 +207,10 @@ class TokenFamilyCodeResource(Resource):
             user_id=user_id, username=username
         )
         if tree_id is None or not family_code_matches(
-            tree=tree_id, user_id=user_id, code=args["code"]
+            tree=tree_id,
+            user_id=user_id,
+            code=args["code"],
+            default_code=current_app.config.get("FAMILY_CODE_DEFAULT"),
         ):
             abort_with_message(403, "Invalid family code")
         return get_tokens(
