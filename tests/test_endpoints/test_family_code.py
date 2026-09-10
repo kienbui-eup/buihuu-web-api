@@ -11,12 +11,77 @@ from gramps_webapi.api.family_code import (
     normalize_code,
 )
 from gramps_webapi.auth import get_guid
-from gramps_webapi.auth.const import ROLE_GUEST, ROLE_OWNER
+from gramps_webapi.auth.const import ROLE_GUEST, ROLE_MEMBER, ROLE_OWNER
 
 from . import BASE_URL, TEST_USERS, get_test_client
 from .util import fetch_header
 
 URL = BASE_URL + "/token/family-code/"
+
+
+class TestFamilyCodeAccountLocked(unittest.TestCase):
+    """Tài khoản khách chung không tự đổi được tên, thư hay mật khẩu.
+
+    Token của nó nằm trên máy mọi người trong họ; nếu một người đổi mật khẩu
+    thì cả họ mất lối vào. Tài khoản thường và quản trị không bị ảnh hưởng.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.client = get_test_client()
+        cls.app = cls.client.application
+        cls.guest = TEST_USERS[ROLE_GUEST]["name"]
+        cls.app.config["FAMILY_CODE_USERNAME"] = cls.guest
+
+    def test_shared_account_cannot_change_own_details(self):
+        headers = fetch_header(self.client, role=ROLE_GUEST)
+        rv = self.client.put(
+            BASE_URL + "/users/-/", json={"full_name": "Ai đó"}, headers=headers
+        )
+        self.assertEqual(rv.status_code, 403)
+        rv = self.client.put(
+            BASE_URL + "/users/-/", json={"name_new": "tenkhac"}, headers=headers
+        )
+        self.assertEqual(rv.status_code, 403)
+        rv = self.client.post(
+            BASE_URL + "/users/-/password/change",
+            json={
+                "old_password": TEST_USERS[ROLE_GUEST]["password"],
+                "new_password": "matkhaumoi",
+            },
+            headers=headers,
+        )
+        self.assertEqual(rv.status_code, 403)
+        # Mật khẩu cũ vẫn dùng được.
+        rv = self.client.post(
+            "/api/token/",
+            json={"username": self.guest, "password": TEST_USERS[ROLE_GUEST]["password"]},
+        )
+        self.assertEqual(rv.status_code, 200)
+
+    def test_other_accounts_still_change_own_details(self):
+        headers = fetch_header(self.client, role=ROLE_MEMBER)
+        rv = self.client.put(
+            BASE_URL + "/users/-/", json={"full_name": "Thành viên"}, headers=headers
+        )
+        self.assertEqual(rv.status_code, 200)
+
+    def test_owner_still_edits_shared_account(self):
+        headers = fetch_header(self.client, role=ROLE_OWNER)
+        rv = self.client.put(
+            BASE_URL + f"/users/{self.guest}/",
+            json={"full_name": "Khách trong họ"},
+            headers=headers,
+        )
+        self.assertEqual(rv.status_code, 200)
+
+    def test_not_locked_when_family_code_disabled(self):
+        with patch.dict(self.app.config, {"FAMILY_CODE_USERNAME": ""}):
+            headers = fetch_header(self.client, role=ROLE_GUEST)
+            rv = self.client.put(
+                BASE_URL + "/users/-/", json={"full_name": "Khách"}, headers=headers
+            )
+        self.assertEqual(rv.status_code, 200)
 
 
 class TestNormalizeCode(unittest.TestCase):

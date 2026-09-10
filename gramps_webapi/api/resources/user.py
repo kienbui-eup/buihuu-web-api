@@ -102,6 +102,15 @@ class UserChangeBase(ProtectedResource):
                 user_name = get_name(user_id)
             except ValueError:
                 abort_with_message(401, "User not found for token ID")
+            # Tài khoản khách dùng chung cho cả họ (vào bằng mã dòng họ, xem
+            # family_code.py): ai cũng mang token của nó, nên không được tự đổi
+            # tên đăng nhập, thư hay mật khẩu, kẻo một người đổi là cả họ mất
+            # lối vào. Quản trị vẫn sửa được tài khoản này qua /users/<tên>/.
+            family_code_user = current_app.config.get("FAMILY_CODE_USERNAME") or ""
+            if family_code_user and user_name == family_code_user:
+                abort_with_message(
+                    403, "The shared family code account cannot change its own details"
+                )
             other_tree = False
         else:
             try:
