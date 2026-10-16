@@ -52,7 +52,9 @@ def check_success(test, url, full=False, role=ROLE_OWNER, *, locale="en"):
     Use locale=None when checking the deployment's Vietnamese default.
     """
     parts = urlsplit(url)
-    if locale is not None and "locale" not in parse_qs(parts.query, keep_blank_values=True):
+    if locale is not None and "locale" not in parse_qs(
+        parts.query, keep_blank_values=True
+    ):
         query = parts.query + ("&" if parts.query else "") + "locale=" + locale
         url = urlunsplit(parts._replace(query=query))
     header = fetch_header(test.client, role=role)
