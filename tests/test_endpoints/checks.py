@@ -19,8 +19,11 @@
 
 """Check functions for performing specific unit tests."""
 
-from jsonschema import RefResolver, validate
+import re
+from functools import lru_cache
 from urllib.parse import parse_qs, urlsplit, urlunsplit
+
+from jsonschema import RefResolver, validate
 
 from gramps_webapi.auth.const import ROLE_OWNER
 
@@ -46,17 +49,55 @@ def get_openapi_schema_validator(client, name):
     return schema, resolver
 
 
+@lru_cache(maxsize=8)
+def _localizable_paths(client):
+    """Resolve the public query contract once per fixture client."""
+    spec, _ = _get_openapi_spec(client)
+    routes = []
+    for path, operations in spec["paths"].items():
+        parameters = operations.get("parameters", []) + operations.get("get", {}).get(
+            "parameters", []
+        )
+        resolved = []
+        for parameter in parameters:
+            reference = parameter.get("$ref", "")
+            if reference.startswith("#/components/parameters/"):
+                key = reference.rsplit("/", 1)[1].replace("~1", "/").replace("~0", "~")
+                parameter = (
+                    spec.get("components", {}).get("parameters", {}).get(key, {})
+                )
+            resolved.append(parameter)
+        if any(p.get("name") == "locale" and p.get("in") == "query" for p in resolved):
+            parts = re.split(r"(\{[^}]+\})", path)
+            routes.append(
+                re.compile(
+                    "".join(
+                        "[^/]+" if p.startswith("{") else re.escape(p) for p in parts
+                    )
+                )
+            )
+    return tuple(routes)
+
+
+def _fixture_locale_url(client, url, locale):
+    """Only add a fixture language when that endpoint accepts it."""
+    parts = urlsplit(url)
+    if (
+        locale is not None
+        and "locale" not in parse_qs(parts.query, keep_blank_values=True)
+        and any(route.fullmatch(parts.path) for route in _localizable_paths(client))
+    ):
+        query = parts.query + ("&" if parts.query else "") + "locale=" + locale
+        return urlunsplit(parts._replace(query=query))
+    return url
+
+
 def check_success(test, url, full=False, role=ROLE_OWNER, *, locale="en"):
     """Check legacy English fixtures, preserving explicit localized requests.
 
     Use locale=None when checking the deployment's Vietnamese default.
     """
-    parts = urlsplit(url)
-    if locale is not None and "locale" not in parse_qs(
-        parts.query, keep_blank_values=True
-    ):
-        query = parts.query + ("&" if parts.query else "") + "locale=" + locale
-        url = urlunsplit(parts._replace(query=query))
+    url = _fixture_locale_url(test.client, url, locale)
     header = fetch_header(test.client, role=role)
     rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 200)
