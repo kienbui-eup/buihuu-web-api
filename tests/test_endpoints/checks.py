@@ -23,7 +23,8 @@ import re
 from functools import lru_cache
 from urllib.parse import parse_qs, urlsplit, urlunsplit
 
-from jsonschema import RefResolver, validate
+from jsonschema import RefResolver
+from jsonschema.validators import validator_for
 
 from gramps_webapi.auth.const import ROLE_OWNER
 
@@ -146,17 +147,22 @@ def check_requires_token(test, url, role=ROLE_OWNER):
     return rv.json
 
 
+def _validate_schema_results(value, schema, resolver):
+    """Check the contract once and validate every response item against it."""
+    validator_class = validator_for(schema)
+    validator_class.check_schema(schema)
+    validator = validator_class(schema, resolver=resolver)
+    for item in value if isinstance(value, list) else [value]:
+        validator.validate(item)
+
+
 def check_conforms_to_openapi_schema(test, url, name, role=ROLE_OWNER):
     """Test that result conforms to the auto-generated OpenAPI 3.0 schema."""
     header = fetch_header(test.client, role=role)
     rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 200)
     schema, resolver = get_openapi_schema_validator(test.client, name)
-    if isinstance(rv.json, list):
-        for item in rv.json:
-            validate(instance=item, schema=schema, resolver=resolver)
-    else:
-        validate(instance=rv.json, schema=schema, resolver=resolver)
+    _validate_schema_results(rv.json, schema, resolver)
     return rv.json
 
 
@@ -295,7 +301,11 @@ def check_sort_parameter(
     if value_key is not None:
         item_key = value_key
     rv = test.client.get(
-        "{}{}keys={}&sort={}{}".format(url, join, item_key, direction, sort_key),
+        _fixture_locale_url(
+            test.client,
+            "{}{}keys={}&sort={}{}".format(url, join, item_key, direction, sort_key),
+            "en",
+        ),
         headers=header,
     )
     test.assertEqual(rv.status_code, 200)
