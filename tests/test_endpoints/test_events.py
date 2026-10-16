@@ -367,6 +367,15 @@ class TestEvents(unittest.TestCase):
         """Test invalid profile parameter and values."""
         check_invalid_semantics(self, TEST_URL + "?profile", check="list")
 
+    def test_event_profile_defaults_to_vietnamese_and_honors_explicit_english(self):
+        """The fork's default and upstream English fixtures are both supported."""
+        url = TEST_URL + "?page=1&pagesize=1&keys=profile&profile=self"
+        default = check_success(self, url, locale=None)[0]["profile"]
+        english = check_success(self, url + "&locale=en")[0]["profile"]
+        self.assertEqual(default["type"].strip(), "Sinh")
+        self.assertEqual(english["type"], "Birth")
+        self.assertEqual(default["date"], english["date"])
+
     def test_get_events_parameter_profile_expected_result(self):
         """Test expected response."""
         rv = check_success(
