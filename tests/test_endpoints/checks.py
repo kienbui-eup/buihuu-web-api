@@ -20,6 +20,7 @@
 """Check functions for performing specific unit tests."""
 
 from jsonschema import RefResolver, validate
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 from gramps_webapi.auth.const import ROLE_OWNER
 
@@ -45,8 +46,17 @@ def get_openapi_schema_validator(client, name):
     return schema, resolver
 
 
-def check_success(test, url, full=False, role=ROLE_OWNER):
-    """Test that result returned successfully."""
+def check_success(test, url, full=False, role=ROLE_OWNER, *, locale="en"):
+    """Check legacy English fixtures, preserving explicit localized requests.
+
+    Use locale=None when checking the deployment's Vietnamese default.
+    """
+    parts = urlsplit(url)
+    if locale is not None and "locale" not in parse_qs(
+        parts.query, keep_blank_values=True
+    ):
+        query = parts.query + ("&" if parts.query else "") + "locale=" + locale
+        url = urlunsplit(parts._replace(query=query))
     header = fetch_header(test.client, role=role)
     rv = test.client.get(url, headers=header)
     test.assertEqual(rv.status_code, 200)
