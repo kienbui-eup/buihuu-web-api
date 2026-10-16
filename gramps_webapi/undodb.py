@@ -44,6 +44,7 @@ from gramps.gen.lib.json_utils import (
 from sqlalchemy import (
     BigInteger,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     PrimaryKeyConstraint,
@@ -129,6 +130,12 @@ class Change(Base):
             new = self._obj_to_json(self.new_json)
             data["new_data"] = new
         return data
+
+
+# Append and range queries select a connection before ordering change IDs.
+CHANGE_CONNECTION_INDEX = Index(
+    "ix_changes_connection_id_id", Change.connection_id, Change.id
+)
 
 
 class Connection(Base):
@@ -315,6 +322,8 @@ class DbUndoSQL(DbUndo):
     def _ensure_schema(self) -> None:
         """Create the undo DB tables if not already present."""
         Base.metadata.create_all(self.engine)
+        # create_all skips indexes when the table already exists.
+        CHANGE_CONNECTION_INDEX.create(self.engine, checkfirst=True)
         self._schema_initialized = True
 
     def _make_connection_id(self) -> int:

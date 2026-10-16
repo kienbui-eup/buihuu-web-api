@@ -10,6 +10,51 @@ from .test_endpoints import checks
 
 
 class TestContractHelpers(unittest.TestCase):
+    def test_locale_boolean_is_not_treated_as_language_code(self):
+        client = Mock()
+        spec = {
+            "paths": {
+                "/api/events/": {
+                    "get": {
+                        "parameters": [
+                            {
+                                "name": "locale",
+                                "in": "query",
+                                "schema": {"type": "string"},
+                            }
+                        ]
+                    }
+                },
+                "/api/types/default/": {
+                    "get": {
+                        "parameters": [
+                            {
+                                "name": "locale",
+                                "in": "query",
+                                "schema": {"type": "boolean"},
+                            }
+                        ]
+                    }
+                },
+                "/api/bookmarks/": {"get": {"parameters": []}},
+            }
+        }
+        with patch.object(checks, "_get_openapi_spec", return_value=(spec, None)):
+            self.assertEqual(
+                checks._fixture_locale_url(client, "/api/events/", "en"),
+                "/api/events/?locale=en",
+            )
+            for url in (
+                "/api/types/default/",
+                "/api/bookmarks/",
+                "/api/events/?locale=de",
+                "/api/types/default/?locale=true",
+            ):
+                self.assertEqual(checks._fixture_locale_url(client, url, "en"), url)
+            self.assertEqual(
+                checks._fixture_locale_url(client, "/api/events/", None), "/api/events/"
+            )
+
     def test_schema_is_checked_once_and_every_result_is_validated(self):
         schema = {
             "type": "object",
