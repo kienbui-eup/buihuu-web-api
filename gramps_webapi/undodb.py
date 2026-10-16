@@ -65,6 +65,7 @@ from sqlalchemy.orm import (
     relationship,
     sessionmaker,
 )
+from sqlalchemy.schema import CreateIndex
 from sqlalchemy.sql import func
 
 _ = glocale.translation.gettext
@@ -323,7 +324,13 @@ class DbUndoSQL(DbUndo):
         """Create the undo DB tables if not already present."""
         Base.metadata.create_all(self.engine)
         # create_all skips indexes when the table already exists.
-        CHANGE_CONNECTION_INDEX.create(self.engine, checkfirst=True)
+        if self.engine.dialect.name in {"sqlite", "postgresql"}:
+            with self.engine.begin() as connection:
+                connection.execute(
+                    CreateIndex(CHANGE_CONNECTION_INDEX, if_not_exists=True)
+                )
+        else:
+            CHANGE_CONNECTION_INDEX.create(self.engine, checkfirst=True)
         self._schema_initialized = True
 
     def _make_connection_id(self) -> int:

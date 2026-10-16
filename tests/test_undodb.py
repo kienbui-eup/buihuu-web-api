@@ -25,6 +25,8 @@ import shutil
 import tempfile
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from unittest.mock import patch
 
 from gramps.gen.lib.json_utils import (
@@ -45,7 +47,8 @@ from gramps.gen.lib import (
     Source,
     Tag,
 )
-from sqlalchemy import text
+from sqlalchemy import event, text
+from sqlalchemy.schema import CreateIndex
 
 from gramps_webapi.undodb import DbUndoSQL, DbUndoSQLWeb
 
@@ -138,6 +141,34 @@ class TestUndoHistory(unittest.TestCase):
         undodb._ensure_schema()
         assert self._get_history_table("changes") == before
         self.test_connection_history_uses_covering_index()
+
+    def test_existing_history_index_is_safe_for_concurrent_workers(self):
+        """Two first requests after an upgrade must both open existing history."""
+        undodb = self.db.get_undodb()
+        with undodb.engine.begin() as connection:
+            connection.execute(text("DROP INDEX IF EXISTS ix_changes_connection_id_id"))
+        other = DbUndoSQL(self.db, str(undodb.engine.url))
+        barrier = Barrier(2)
+
+        def synchronize_index(connection, clause, *args):
+            if (
+                isinstance(clause, CreateIndex)
+                and clause.element.name == "ix_changes_connection_id_id"
+            ):
+                barrier.wait(timeout=10)
+
+        for manager in (undodb, other):
+            event.listen(manager.engine, "before_execute", synchronize_index)
+        try:
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                list(
+                    pool.map(lambda manager: manager._ensure_schema(), (undodb, other))
+                )
+            assert len(undodb) == 100
+        finally:
+            for manager in (undodb, other):
+                event.remove(manager.engine, "before_execute", synchronize_index)
+            other.close()
 
     def test_initial_sate(self):
         assert self.db.get_number_of_people() == 10
