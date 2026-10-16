@@ -107,6 +107,38 @@ class TestUndoHistory(unittest.TestCase):
             res = session.execute(text(f"SELECT * FROM {table_name}"))
             return res.mappings().all()
 
+    def test_connection_history_uses_covering_index(self):
+        """Per-connection append must not scan the full connection history."""
+        undodb = self.db.get_undodb()
+        with undodb.engine.connect() as connection:
+            indexes = connection.execute(text("PRAGMA index_list(changes)")).mappings()
+            names = {row["name"] for row in indexes}
+            assert "ix_changes_connection_id_id" in names
+            columns = connection.execute(
+                text("PRAGMA index_info(ix_changes_connection_id_id)")
+            ).mappings()
+            assert [row["name"] for row in columns] == ["connection_id", "id"]
+            plan = connection.execute(
+                text(
+                    "EXPLAIN QUERY PLAN SELECT MAX(id) FROM changes WHERE connection_id = :id"
+                ),
+                {"id": undodb.connection_id},
+            ).fetchall()
+            assert any("ix_changes_connection_id_id" in row[-1] for row in plan)
+        assert len(undodb) == 100
+
+    def test_existing_history_receives_covering_index(self):
+        """Opening old history adds its index without rewriting undo records."""
+        undodb = self.db.get_undodb()
+        before = self._get_history_table("changes")
+        with undodb.engine.begin() as connection:
+            connection.execute(text("DROP INDEX IF EXISTS ix_changes_connection_id_id"))
+        undodb._schema_initialized = False
+        undodb._ensure_schema()
+        undodb._ensure_schema()
+        assert self._get_history_table("changes") == before
+        self.test_connection_history_uses_covering_index()
+
     def test_initial_sate(self):
         assert self.db.get_number_of_people() == 10
         connections = self._get_history_table("connections")

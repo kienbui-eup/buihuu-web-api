@@ -68,7 +68,12 @@ def _localizable_paths(client):
                     spec.get("components", {}).get("parameters", {}).get(key, {})
                 )
             resolved.append(parameter)
-        if any(p.get("name") == "locale" and p.get("in") == "query" for p in resolved):
+        if any(
+            p.get("name") == "locale"
+            and p.get("in") == "query"
+            and p.get("schema", {}).get("type") == "string"
+            for p in resolved
+        ):
             parts = re.split(r"(\{[^}]+\})", path)
             routes.append(
                 re.compile(

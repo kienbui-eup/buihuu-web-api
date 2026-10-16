@@ -61,6 +61,12 @@ USER_DB_URI="sqlite:///{cls.user_db.name}"
         os.remove(cls.config_file.name)
         os.remove(cls.user_db.name)
 
+    def setUp(self):
+        # CLI --config mutates the process environment; isolate each invocation.
+        environment = patch.dict(os.environ)
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def test_add_user_no_pw(self):
         result = self.runner.invoke(
             cli, ["--config", self.config_file.name, "user", "add", "userName0"]
